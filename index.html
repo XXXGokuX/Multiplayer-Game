@@ -1,0 +1,262 @@
+<html>
+    <head>
+
+    </head>
+    <style>
+        canvas
+{
+  border:1px solid;
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%,-50%);
+}
+    </style>
+    <body>
+        <canvas id="canvas">
+
+        </canvas>
+    </body>
+
+    <script src="/socket.io/socket.io.js"></script>
+
+<script>
+const socket= io()
+
+canvas= document.getElementById('canvas')
+
+ctx= canvas.getContext('2d')
+canvasW= canvas.width=600
+canvasH= canvas.height=360
+frame= 0
+const boundary= 25
+var players= []
+
+
+
+const mouse= {
+  x:undefined,
+  y:undefined,
+  height:0.1,
+  width:0.1
+}
+const playerSpeed= 5
+const grids= []
+
+let canvasPosition= canvas.getBoundingClientRect()
+
+window.addEventListener('resize',()=>{
+  
+  canvasPosition= canvas.getBoundingClientRect()
+})
+
+window.addEventListener('click',(e)=>{
+  
+  mouse.x= e.x - canvasPosition.x
+  mouse.y= e.y - canvasPosition.y
+})
+
+window.addEventListener('keydown',(e)=>{
+    console.log(player)
+    player.playerStop= false  
+   
+  switch(e.key)
+  {
+    case "ArrowUp":
+     if(player.y > -boundary)
+     {  
+      player.y -= playerSpeed
+      player.frameY= 5
+     }
+      break
+    case "ArrowDown":
+     if(player.y+player.height < canvasH+boundary) 
+     {  
+      player.y += playerSpeed
+      player.frameY= 4
+     }  
+     break
+    case "ArrowRight":
+     if(player.x+player.width < canvasW+boundary) 
+     {  
+      player.x += playerSpeed
+      player.frameY= 6
+     }  
+      break
+    case "ArrowLeft":
+     if(player.x > -boundary)
+     {  
+      player.x -= playerSpeed
+      player.frameY= 7
+     }  
+      break  
+  }
+  socket.emit("update_pos",{x: player.x,y: player.y,frame:player.frameY,frameX: player.frameX},true)
+  
+})
+window.addEventListener('keyup',()=>{
+  player.playerStop= true
+  player.frameX= 0
+  socket.emit("update_pos",{x: player.x,y: player.y,frame:player.frameY,frameX: player.frameX},false)
+
+})
+
+
+
+class Player
+  {
+     constructor(x,y)
+    {
+       this.x= x
+       this.y= y
+       this.width=80
+       this.height= 80
+       this.image= new Image()
+       this.image.src='https://i.postimg.cc/m26zPHZC/char-a-p1-0bas-humn-v01.png'
+       this.spriteWidth= 64
+       this.spriteHeight= 64
+       this.playerStop= true 
+       this.frameX= 0
+       this.frameY= 0
+       this.maxFrameX= 5
+       this.maxFrameY= 3
+       this.frameInterval= 10
+       this.standFrameInterval= 50
+    }
+    update()
+    {
+         
+            if(this.playerStop && 
+               frame%this.standFrameInterval===0)
+              {
+                if(this.frameY <this.maxFrameY) this.frameY++
+                else this.frameY= 0 
+              }
+          
+                if(frame%this.frameInterval===0 &&
+                  !this.playerStop
+                  )
+                  {
+                    if(this.frameX <this.maxFrameX) this.frameX++
+                else this.frameX= 0 
+                  }
+             
+         
+    }
+  
+    draw()
+    {
+      ctx.fillStyle= 'blue'
+      ctx.drawImage(this.image,this.frameX*this.spriteWidth,this.frameY*this.spriteHeight,this.spriteWidth,this.spriteHeight,this.x,this.y,this.width,this.height)
+    }
+    
+  }
+
+class Grid
+  {
+    constructor(x,y)
+    {
+      this.x= x
+      this.y= y
+      this.width= 36
+      this.height= 36
+    }
+    
+    draw()
+    {
+     ctx.drawImage(img,12*18,12*9,12*3,12*3,this.x,this.y,this.width,this.height)
+    }
+  }
+
+
+
+//CREATE GRID
+function createGrid()
+{
+   for(let row=0; row<=canvasW ; row+= 36)
+     {
+        for(let col=0; col<=canvasH ;col+= 36)
+          grids.push(new Grid(row,col))
+     }
+}
+createGrid()
+//DISPLAY GRID
+function displayGrid()
+{
+   grids.forEach(gobj=> gobj.draw())
+}
+
+const playerCoordn= 
+{
+  x: Math.random()*(canvasW-80),
+  y: Math.random()*(canvasH-80),
+}
+const player= new Player(playerCoordn.x,playerCoordn.y)
+
+socket.emit('add_player',playerCoordn)
+socket.on('msg', function(data){
+  players.splice(0)
+
+  let playersCoordn= [...data]
+
+  playersCoordn.forEach((pobj,pi)=>{
+    if(pobj.move)
+    {
+      players.push(new Player(pobj.x,pobj.y))
+      players[pi].playerStop= false
+      players[pi].frameY= pobj.frame
+      players[pi].frameX= pobj.frameX
+
+    }
+    else
+    players.push(new Player(pobj.x,pobj.y))
+  })  
+
+  CPI= players.findIndex(obj=>  obj.x===player.x && obj.y===player.y) 
+});
+
+//DISPLAY ALL PLAYERS
+function displayAllPlayers()
+{
+
+  players.forEach(pobj=>{
+    pobj.update()
+    pobj.draw()
+  })
+}
+
+
+function animation()
+{
+  ctx.clearRect(0,0,canvasW,canvasH)
+ 
+  img= new Image()
+  img.src= 'https://i.postimg.cc/RZpNVMnP/First-Asset-pack.png'
+
+  
+    
+ displayGrid()
+ displayAllPlayers()
+  
+ player.update()
+ 
+  frame++
+  requestAnimationFrame(animation)
+}
+animation()
+
+function isCollide(first,second)
+{
+  if(!(
+  first.x > second.x+second.y ||
+  second.x > first.x+first.y ||
+   
+  first.y > second.y+second.height ||
+  second.y > first.y+first.height  
+  ))
+    return true
+  
+}
+
+    </script>
+</html>
